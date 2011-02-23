@@ -5,7 +5,6 @@ module CASServer::Model
       :foreign_key => :granted_by_pgt_id
       
     def self.generate!(target_service, host_name, pgt)
-      # 3.2 (proxy ticket)
       pt = ProxyTicket.new(
         :ticket             => "PT-" + CASServer::Utils.random_string,
         :service            => target_service,
@@ -21,7 +20,7 @@ module CASServer::Model
       pt
     end
     
-    def self.validate_proxy_ticket(service, ticket)
+    def self.validate!(service, ticket)
       pt, error = ServiceTicket.validate_service_ticket(service, ticket, true)
 
       if pt.kind_of?(CASServer::Model::ProxyTicket) && !error

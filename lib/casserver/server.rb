@@ -620,7 +620,7 @@ module CASServer
 
       @proxies = []
 
-      t, @error = CASServer::Model::ProxyTicket.validate_proxy_ticket(@service, @ticket)
+      t, @error = CASServer::Model::ProxyTicket.validate!(@service, @ticket)
       @success = t && !@error
 
       @extra_attributes = {}
