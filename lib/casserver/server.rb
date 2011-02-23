@@ -304,51 +304,45 @@ module CASServer
       @service = clean_service_url(params['service'])
       @renew = params['renew']
       @gateway = params['gateway'] == 'true' || params['gateway'] == '1'
-
+      host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      
       if tgc = request.cookies['tgt']
         tgt, tgt_error = CASServer::Model::TicketGrantingTicket.validate!(tgc)
       end
 
       if tgt and !tgt_error
-        @message = {:type => 'notice',
-          :message => _("You are currently logged in as '%s'. If this is not you, please log in below.") % tgt.username }
+        @message = {:type => 'notice', :message => _("You are currently logged in as '%s'. If this is not you, please log in below.") % tgt.username }
       end
 
       if params['redirection_loop_intercepted']
-        @message = {:type => 'mistake',
-          :message => _("The client and server are unable to negotiate authentication. Please try logging in again later.")}
+        @message = {:type => 'mistake', :message => _("The client and server are unable to negotiate authentication. Please try logging in again later.")}
       end
-
-      begin
-        if @service
-          if !@renew && tgt && !tgt_error
-            host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      
+      if @service
+        if !@renew && tgt && !tgt_error
+          begin
             st = CASServer::Model::ServiceTicket.generate!(@service, tgt.username, tgt, host_name)
             service_with_ticket = service_uri_with_ticket(@service, st)
             $LOG.info("User '#{tgt.username}' authenticated based on ticket granting cookie. Redirecting to service '#{@service}'.")
-            redirect service_with_ticket, 303 # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)
-          elsif @gateway
-            $LOG.info("Redirecting unauthenticated gateway request to service '#{@service}'.")
-            redirect @service, 303
+            # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)
+            redirect service_with_ticket, 303
+          rescue URI::InvalidURIError
+            $LOG.error("The service '#{@service}' is not a valid URI!")
+            @message = {:type => 'mistake', :message => _("The target service your browser supplied appears to be invalid. Please contact your system administrator for help.")}
           end
         elsif @gateway
-            $LOG.error("This is a gateway request but no service parameter was given!")
-            @message = {:type => 'mistake',
-              :message => _("The server cannot fulfill this gateway request because no service parameter was given.")}
+          $LOG.info("Redirecting unauthenticated gateway request to service '#{@service}'.")
+          redirect @service, 303
         end
-      rescue URI::InvalidURIError
-        $LOG.error("The service '#{@service}' is not a valid URI!")
-        @message = {:type => 'mistake',
-          :message => _("The target service your browser supplied appears to be invalid. Please contact your system administrator for help.")}
+      elsif @gateway
+          $LOG.error("This is a gateway request but no service parameter was given!")
+          @message = {:type => 'mistake', :message => _("The server cannot fulfill this gateway request because no service parameter was given.")}
       end
-      host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-      lt = CASServer::Model::LoginTicket.generate!(host_name)
+      login_ticket = CASServer::Model::LoginTicket.generate!(host_name)
 
-      $LOG.debug("Rendering login form with lt: #{lt}, service: #{@service}, renew: #{@renew}, gateway: #{@gateway}")
+      $LOG.debug("Rendering login form with login_ticket: #{login_ticket}, service: #{@service}, renew: #{@renew}, gateway: #{@gateway}")
 
-      @lt = lt.ticket
-
-      #$LOG.debug(env)
+      @login_ticket = login_ticket.ticket
 
       # If the 'onlyLoginForm' parameter is specified, we will only return the
       # login form part of the page. This is useful for when you want to
@@ -386,7 +380,7 @@ module CASServer
       # 2.2.2 (required)
       @username = params['username']
       @password = params['password']
-      @lt = params['lt']
+      @login_ticket = params['lt']
 
       # Remove leading and trailing widespace from username.
       @username.strip! if @username
@@ -396,19 +390,19 @@ module CASServer
         @username.downcase!
       end
 
-      if error = CASServer::Model::LoginTicket.validate!(@lt)
+      if error = CASServer::Model::LoginTicket.validate!(@login_ticket)
         @message = {:type => 'mistake', :message => error}
         # generate another login ticket to allow for re-submitting the form
-        @lt = CASServer::Model::LoginTicket.generate!.ticket
+        @login_ticket = CASServer::Model::LoginTicket.generate!.ticket
         status 500
         render :erb, :login
       end
 
       # generate another login ticket to allow for re-submitting the form after a post
       host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-      @lt = CASServer::Model::LoginTicket.generate!(host_name).ticket
+      @login_ticket = CASServer::Model::LoginTicket.generate!(host_name).ticket
 
-      $LOG.debug("Logging in with username: #{@username}, lt: #{@lt}, service: #{@service}, auth: #{settings.auth.inspect}")
+      $LOG.debug("Logging in with username: #{@username}, login_ticket: #{@login_ticket}, service: #{@service}, auth: #{settings.auth.inspect}")
       
       credentials_are_valid = false
       extra_attributes = {}
@@ -477,7 +471,7 @@ module CASServer
       rescue CASServer::AuthenticatorError => e
         $LOG.error(e)
         # generate another login ticket to allow for re-submitting the form
-        @lt = CASServer::Model::LoginTicket.generate!.ticket
+        @login_ticket = CASServer::Model::LoginTicket.generate!.ticket
         @message = {:type => 'mistake', :message => _(e.to_s)}
         status 401
       end
@@ -541,7 +535,7 @@ module CASServer
 
       @message[:message] +=_(" Please click on the following link to continue:") if @continue_url
       host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-      @lt = CASServer::Model::LoginTicket.generate!(host_name)
+      @login_ticket = CASServer::Model::LoginTicket.generate!(host_name)
 
       if @gateway && @service
         redirect @service, 303

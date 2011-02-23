@@ -7,11 +7,12 @@ module CASServer::Model
       :foreign_key => :granted_by_pgt_id
     
     def self.generate!(pgt_url, host_name, st)
-      pgt = ProxyGrantingTicket.new
-      pgt.ticket = "PGT-" + CASServer::Utils.random_string(60)
-      pgt.iou = "PGTIOU-" + CASServer::Utils.random_string(57)
-      pgt.service_ticket_id = st.id
-      pgt.client_hostname = host_name
+      pgt = ProxyGrantingTicket.new(
+        :ticket             => "PGT-" + CASServer::Utils.random_string(60),
+        :iou                => "PGTIOU-" + CASServer::Utils.random_string(57),
+        :service_ticket_id  => st.id,
+        :client_hostname    => host_name
+      )
 
       if callback_url_valid?(pgt_url, pgt)
         pgt.save!

@@ -24,7 +24,7 @@ module CASServer::Model
     end
     
     def expired?
-      Time.now - st.created_on > @@life_time
+      Time.now - st.created_on > life_time
     end
     
     def self.generate!(service, username, tgt, host_name)
