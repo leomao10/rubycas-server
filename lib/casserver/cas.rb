@@ -1,7 +1,13 @@
 require 'uri'
 require 'net/https'
 
-require 'casserver/model'
+require 'casserver/models/consumable'
+require 'casserver/models/ticket'
+require 'casserver/models/login_ticket'
+require 'casserver/models/service_ticket'
+require 'casserver/models/proxy_ticket'
+require 'casserver/models/ticket_granting_ticket'
+require 'casserver/models/proxy_granting_ticket'
 
 # Encapsulates CAS functionality. This module is meant to be included in
 # the CASServer::Controllers module.

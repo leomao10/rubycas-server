@@ -1,5 +1,4 @@
 module CASServer::Model
-
   module Consumable
     def consume!
       self.consumed = Time.now
