@@ -6,19 +6,22 @@ module CASServer::Model
     
     include Consumable
     
+    after_save :log_ticket
+    
     def expired?
       Time.now - self.created_on > @@life_time
     end
     
-    def self.generate_login_ticket(host_name)
-      # 3.5 (login ticket)
-      lt = LoginTicket.new
-      lt.ticket = "LT-" + CASServer::Utils.random_string
-
-      lt.client_hostname = host_name
+    def log_ticket
+      logger.debug("Generated login ticket '#{ticket}' for client at '#{client_hostname}'")
+    end
+    
+    def self.generate!(host_name)
+      lt = LoginTicket.new(
+        :ticket           => "LT-" + CASServer::Utils.random_string,
+        :client_hostname  => host_name
+      )
       lt.save!
-      logger.debug("Generated login ticket '#{lt.ticket}' for client" +
-        " at '#{lt.client_hostname}'")
       lt
     end
     
