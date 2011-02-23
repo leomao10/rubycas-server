@@ -271,6 +271,7 @@ module CASServer
       init_logger!
       init_database!
       init_authenticators!
+      CASServer::Model::LoginTicket.life_time = settings.config[:maximum_unused_login_ticket_lifetime]
     end
 
     before do
@@ -303,7 +304,7 @@ module CASServer
       @gateway = params['gateway'] == 'true' || params['gateway'] == '1'
 
       if tgc = request.cookies['tgt']
-        tgt, tgt_error = validate_ticket_granting_ticket(tgc)
+        tgt, tgt_error = CASServer::Model::TicketGrantingTicket.validate_ticket_granting_ticket(tgc)
       end
 
       if tgt and !tgt_error
@@ -319,7 +320,8 @@ module CASServer
       begin
         if @service
           if !@renew && tgt && !tgt_error
-            st = generate_service_ticket(@service, tgt.username, tgt)
+            host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+            st = CASServer::Model::ServiceTicket.generate_service_ticket(@service, tgt.username, tgt, host_name)
             service_with_ticket = service_uri_with_ticket(@service, st)
             $LOG.info("User '#{tgt.username}' authenticated based on ticket granting cookie. Redirecting to service '#{@service}'.")
             redirect service_with_ticket, 303 # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)
@@ -337,8 +339,8 @@ module CASServer
         @message = {:type => 'mistake',
           :message => _("The target service your browser supplied appears to be invalid. Please contact your system administrator for help.")}
       end
-
-      lt = generate_login_ticket
+      host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      lt = CASServer::Model::LoginTicket.generate_login_ticket(host_name)
 
       $LOG.debug("Rendering login form with lt: #{lt}, service: #{@service}, renew: #{@renew}, gateway: #{@gateway}")
 
@@ -392,16 +394,17 @@ module CASServer
         @username.downcase!
       end
 
-      if error = validate_login_ticket(@lt)
+      if error = CASServer::Model::LoginTicket.validate_login_ticket(@lt)
         @message = {:type => 'mistake', :message => error}
         # generate another login ticket to allow for re-submitting the form
-        @lt = generate_login_ticket.ticket
+        @lt = CASServer::Model::LoginTicket.generate_login_ticket.ticket
         status 500
         render :erb, :login
       end
 
       # generate another login ticket to allow for re-submitting the form after a post
-      @lt = generate_login_ticket.ticket
+      host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      @lt = CASServer::Model::LoginTicket.generate_login_ticket(host_name).ticket
 
       $LOG.debug("Logging in with username: #{@username}, lt: #{@lt}, service: #{@service}, auth: #{settings.auth.inspect}")
       
@@ -438,7 +441,8 @@ module CASServer
           $LOG.debug("Authenticator provided additional user attributes: #{extra_attributes.inspect}") unless extra_attributes.blank?
 
           # 3.6 (ticket-granting cookie)
-          tgt = generate_ticket_granting_ticket(@username, extra_attributes)
+          host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+          tgt = CASServer::Model::TicketGrantingTicket.generate_ticket_granting_ticket(@username, host_name, extra_attributes)
           response.set_cookie('tgt', tgt.to_s)
 
           $LOG.debug("Ticket granting cookie '#{request.cookies['tgt'].inspect}' granted to #{@username.inspect}")
@@ -447,7 +451,8 @@ module CASServer
             $LOG.info("Successfully authenticated user '#{@username}' at '#{tgt.client_hostname}'. No service param was given, so we will not redirect.")
             @message = {:type => 'confirmation', :message => _("You have successfully logged in.")}
           else
-            @st = generate_service_ticket(@service, @username, tgt)
+            host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+            @st = CASServer::Model::ServiceTicket.generate_service_ticket(@service, @username, tgt, host_name)
 
             begin
               service_with_ticket = service_uri_with_ticket(@service, @st)
@@ -470,7 +475,7 @@ module CASServer
       rescue CASServer::AuthenticatorError => e
         $LOG.error(e)
         # generate another login ticket to allow for re-submitting the form
-        @lt = generate_login_ticket.ticket
+        @lt = CASServer::Model::LoginTicket.generate_login_ticket.ticket
         @message = {:type => 'mistake', :message => _(e.to_s)}
         status 401
       end
@@ -533,8 +538,8 @@ module CASServer
       @message = {:type => 'confirmation', :message => _("You have successfully logged out.")}
 
       @message[:message] +=_(" Please click on the following link to continue:") if @continue_url
-
-      @lt = generate_login_ticket
+      host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      @lt = CASServer::Model::LoginTicket.generate_login_ticket(host_name)
 
       if @gateway && @service
         redirect @service, 303
@@ -558,7 +563,7 @@ module CASServer
 			# optional
 			@renew = params['renew']
 			
-			st, @error = validate_service_ticket(@service, @ticket)      
+			st, @error = CASServer::Model::ServiceTicket.validate_service_ticket(@service, @ticket)      
 			@success = st && !@error
 			
 			@username = st.username if @success
@@ -581,13 +586,13 @@ module CASServer
 			# optional
 			@renew = params['renew']
 
-			st, @error = validate_service_ticket(@service, @ticket)
+			st, @error = CASServer::Model::ServiceTicket.validate_service_ticket(@service, @ticket)
 			@success = st && !@error
 
 			if @success
         @username = st.username
         if @pgt_url
-          pgt = generate_proxy_granting_ticket(@pgt_url, st)
+          pgt = CASServer::Model::ProxyGrantingTicket.generate_proxy_granting_ticket(@pgt_url, st)
           @pgtiou = pgt.iou if pgt
         end
         @extra_attributes = st.granted_by_tgt.extra_attributes || {}
@@ -614,7 +619,7 @@ module CASServer
 
       @proxies = []
 
-      t, @error = validate_proxy_ticket(@service, @ticket)
+      t, @error = CASServer::Model::ProxyTicket.validate_proxy_ticket(@service, @ticket)
       @success = t && !@error
 
       @extra_attributes = {}
@@ -626,7 +631,7 @@ module CASServer
         end
 
         if @pgt_url
-          pgt = generate_proxy_granting_ticket(@pgt_url, t)
+          pgt = CASServer::Model::ProxyGrantingTicket.generate_proxy_granting_ticket(@pgt_url, t)
           @pgtiou = pgt.iou if pgt
         end
 
@@ -647,11 +652,11 @@ module CASServer
       @ticket = params['pgt']
       @target_service = params['targetService']
 
-      pgt, @error = validate_proxy_granting_ticket(@ticket)
+      pgt, @error = CASServer::Model::ProxyGrantingTicket.validate_proxy_granting_ticket(@ticket)
       @success = pgt && !@error
 
       if @success
-        @pt = generate_proxy_ticket(@target_service, pgt)
+        @pt = CASServer::Model::ProxyTicket.generate_proxy_ticket(@target_service, pgt)
       end
 
       status response_status_from_error(@error) if @error
