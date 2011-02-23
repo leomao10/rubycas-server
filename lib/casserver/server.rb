@@ -593,7 +593,8 @@ module CASServer
 			if @success
         @username = st.username
         if @pgt_url
-          pgt = CASServer::Model::ProxyGrantingTicket.generate_proxy_granting_ticket(@pgt_url, st)
+          host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+          pgt = CASServer::Model::ProxyGrantingTicket.generate!(@pgt_url, host_name, st)
           @pgtiou = pgt.iou if pgt
         end
         @extra_attributes = st.granted_by_tgt.extra_attributes || {}
@@ -632,7 +633,8 @@ module CASServer
         end
 
         if @pgt_url
-          pgt = CASServer::Model::ProxyGrantingTicket.generate_proxy_granting_ticket(@pgt_url, t)
+          host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+          pgt = CASServer::Model::ProxyGrantingTicket.generate!(@pgt_url, host_name, t)
           @pgtiou = pgt.iou if pgt
         end
 
