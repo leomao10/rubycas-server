@@ -1,5 +1,8 @@
 module CASServer::Model
   class TicketGrantingTicket < Ticket
+    @@life_time = 1.0/0
+    class_inheritable_accessor :life_time  
+    
     set_table_name 'casserver_tgt'
 
     serialize :extra_attributes
@@ -15,6 +18,10 @@ module CASServer::Model
         (extra_attributes.blank? ? "" : " with extra attributes #{extra_attributes.inspect}"))
     end
     
+    def expired?
+      life_time && Time.now - tgt.created_on > life_time
+    end
+    
     def self.generate!(username, host_name, extra_attributes = {})
       tgt = TicketGrantingTicket.new(
         :ticket           => "TGC-" + CASServer::Utils.random_string,
@@ -26,23 +33,23 @@ module CASServer::Model
       tgt
     end
     
-    def self.validate_ticket_granting_ticket(ticket)
-      $LOG.debug("Validating ticket granting ticket '#{ticket}'")
+    def self.validate!(ticket)
+      logger.debug("Validating ticket granting ticket '#{ticket}'")
 
       if ticket.nil?
         error = "No ticket granting ticket given."
-        $LOG.debug error
+        logger.debug error
       elsif tgt = TicketGrantingTicket.find_by_ticket(ticket)
-        if settings.config[:maximum_session_lifetime] && Time.now - tgt.created_on > settings.config[:maximum_session_lifetime]
+        if tgt.expired?
   	      tgt.destroy
           error = "Your session has expired. Please log in again."
-          $LOG.info "Ticket granting ticket '#{ticket}' for user '#{tgt.username}' expired."
+          logger.info "Ticket granting ticket '#{ticket}' for user '#{tgt.username}' expired."
         else
-          $LOG.info "Ticket granting ticket '#{ticket}' for user '#{tgt.username}' successfully validated."
+          logger.info "Ticket granting ticket '#{ticket}' for user '#{tgt.username}' successfully validated."
         end
       else
         error = "Invalid ticket granting ticket '#{ticket}' (no matching ticket found in the database)."
-        $LOG.warn(error)
+        logger.warn(error)
       end
 
       [tgt, error]

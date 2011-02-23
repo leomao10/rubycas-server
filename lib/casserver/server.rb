@@ -273,6 +273,7 @@ module CASServer
       init_authenticators!
       CASServer::Model::LoginTicket.life_time = settings.config[:maximum_unused_login_ticket_lifetime]
       CASServer::Model::ServiceTicket.life_time = settings.config[:maximum_unused_service_ticket_lifetime]
+      CASServer::Model::TicketGrantingTicket.life_time = settings.config[:maximum_session_lifetime]
     end
 
     before do
@@ -305,7 +306,7 @@ module CASServer
       @gateway = params['gateway'] == 'true' || params['gateway'] == '1'
 
       if tgc = request.cookies['tgt']
-        tgt, tgt_error = CASServer::Model::TicketGrantingTicket.validate_ticket_granting_ticket(tgc)
+        tgt, tgt_error = CASServer::Model::TicketGrantingTicket.validate!(tgc)
       end
 
       if tgt and !tgt_error
