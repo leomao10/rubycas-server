@@ -6,25 +6,30 @@ module CASServer::Model
     belongs_to :granted_by_tgt,
       :class_name => 'CASServer::Model::TicketGrantingTicket',
       :foreign_key => :granted_by_tgt_id
+      
     has_one :proxy_granting_ticket,
       :foreign_key => :created_by_st_id
 
+    after_save :log_ticket
+    
     def matches_service?(service)
       CASServer::CAS.clean_service_url(self.service) ==
         CASServer::CAS.clean_service_url(service)
     end
     
-    def self.generate_service_ticket(service, username, tgt, host_name)
-      # 3.1 (service ticket)
-      st = ServiceTicket.new
-      st.ticket = "ST-" + CASServer::Utils.random_string
-      st.service = service
-      st.username = username
-      st.granted_by_tgt_id = tgt.id
-      st.client_hostname = host_name
-      st.save!
-      logger.debug("Generated service ticket '#{st.ticket}' for service '#{st.service}'" +
-        " for user '#{st.username}' at '#{st.client_hostname}'")
+    def log_ticket
+      logger.debug("Generated service ticket '#{ticket}' for service '#{service}' for user '#{username}' at '#{client_hostname}'")
+    end
+    
+    def self.generate!(service, username, tgt, host_name)
+      st = ServiceTicket.new(
+        :ticket             => "ST-" + CASServer::Utils.random_string,
+        :service            => service,
+        :username           => username,
+        :granted_by_tgt_id  => tgt.id,
+        :client_hostname    => host_name
+      )
+      st.save!      
       st
     end
     

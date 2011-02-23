@@ -321,7 +321,7 @@ module CASServer
         if @service
           if !@renew && tgt && !tgt_error
             host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-            st = CASServer::Model::ServiceTicket.generate_service_ticket(@service, tgt.username, tgt, host_name)
+            st = CASServer::Model::ServiceTicket.generate!(@service, tgt.username, tgt, host_name)
             service_with_ticket = service_uri_with_ticket(@service, st)
             $LOG.info("User '#{tgt.username}' authenticated based on ticket granting cookie. Redirecting to service '#{@service}'.")
             redirect service_with_ticket, 303 # response code 303 means "See Other" (see Appendix B in CAS Protocol spec)
@@ -452,7 +452,7 @@ module CASServer
             @message = {:type => 'confirmation', :message => _("You have successfully logged in.")}
           else
             host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-            @st = CASServer::Model::ServiceTicket.generate_service_ticket(@service, @username, tgt, host_name)
+            @st = CASServer::Model::ServiceTicket.generate!(@service, @username, tgt, host_name)
 
             begin
               service_with_ticket = service_uri_with_ticket(@service, @st)
