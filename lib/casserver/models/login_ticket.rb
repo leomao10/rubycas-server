@@ -25,7 +25,7 @@ module CASServer::Model
       lt
     end
     
-    def self.validate_login_ticket(ticket)
+    def self.validate!(ticket)
       logger.debug("Validating login ticket '#{ticket}'")
 
       success = false

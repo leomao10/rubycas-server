@@ -395,7 +395,7 @@ module CASServer
         @username.downcase!
       end
 
-      if error = CASServer::Model::LoginTicket.validate_login_ticket(@lt)
+      if error = CASServer::Model::LoginTicket.validate!(@lt)
         @message = {:type => 'mistake', :message => error}
         # generate another login ticket to allow for re-submitting the form
         @lt = CASServer::Model::LoginTicket.generate!.ticket
