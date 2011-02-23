@@ -443,7 +443,7 @@ module CASServer
 
           # 3.6 (ticket-granting cookie)
           host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
-          tgt = CASServer::Model::TicketGrantingTicket.generate_ticket_granting_ticket(@username, host_name, extra_attributes)
+          tgt = CASServer::Model::TicketGrantingTicket.generate!(@username, host_name, extra_attributes)
           response.set_cookie('tgt', tgt.to_s)
 
           $LOG.debug("Ticket granting cookie '#{request.cookies['tgt'].inspect}' granted to #{@username.inspect}")
