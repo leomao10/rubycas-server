@@ -22,7 +22,7 @@ module CASServer::Model
     end
     
     def self.validate_proxy_ticket(service, ticket)
-      pt, error = validate_service_ticket(service, ticket, true)
+      pt, error = ServiceTicket.validate_service_ticket(service, ticket, true)
 
       if pt.kind_of?(CASServer::Model::ProxyTicket) && !error
         if not pt.granted_by_pgt

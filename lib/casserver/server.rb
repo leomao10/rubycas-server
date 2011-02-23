@@ -272,6 +272,7 @@ module CASServer
       init_database!
       init_authenticators!
       CASServer::Model::LoginTicket.life_time = settings.config[:maximum_unused_login_ticket_lifetime]
+      CASServer::Model::ServiceTicket.life_time = settings.config[:maximum_unused_service_ticket_lifetime]
     end
 
     before do
@@ -563,7 +564,7 @@ module CASServer
 			# optional
 			@renew = params['renew']
 			
-			st, @error = CASServer::Model::ServiceTicket.validate_service_ticket(@service, @ticket)      
+			st, @error = CASServer::Model::ServiceTicket.validate!(@service, @ticket)      
 			@success = st && !@error
 			
 			@username = st.username if @success
@@ -586,7 +587,7 @@ module CASServer
 			# optional
 			@renew = params['renew']
 
-			st, @error = CASServer::Model::ServiceTicket.validate_service_ticket(@service, @ticket)
+			st, @error = CASServer::Model::ServiceTicket.validate!(@service, @ticket)
 			@success = st && !@error
 
 			if @success

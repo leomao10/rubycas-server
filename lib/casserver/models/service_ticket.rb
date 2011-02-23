@@ -1,12 +1,14 @@
 module CASServer::Model
   class ServiceTicket < Ticket
-    set_table_name 'casserver_st'
-    include Consumable
+    @@life_time = 1.0/0
+    class_inheritable_accessor :life_time
 
+    include Consumable
+    
+    set_table_name 'casserver_st'
     belongs_to :granted_by_tgt,
       :class_name => 'CASServer::Model::TicketGrantingTicket',
-      :foreign_key => :granted_by_tgt_id
-      
+      :foreign_key => :granted_by_tgt_id      
     has_one :proxy_granting_ticket,
       :foreign_key => :created_by_st_id
 
@@ -21,6 +23,10 @@ module CASServer::Model
       logger.debug("Generated service ticket '#{ticket}' for service '#{service}' for user '#{username}' at '#{client_hostname}'")
     end
     
+    def expired?
+      Time.now - st.created_on > @@life_time
+    end
+    
     def self.generate!(service, username, tgt, host_name)
       st = ServiceTicket.new(
         :ticket             => "ST-" + CASServer::Utils.random_string,
@@ -33,7 +39,7 @@ module CASServer::Model
       st
     end
     
-    def self.validate_service_ticket(service, ticket, allow_proxy_tickets = false)
+    def self.validate!(service, ticket, allow_proxy_tickets = false)
       logger.debug "Validating service/proxy ticket '#{ticket}' for service '#{service}'"
 
       if service.nil? or ticket.nil?
@@ -46,7 +52,7 @@ module CASServer::Model
         elsif st.kind_of?(CASServer::Model::ProxyTicket) && !allow_proxy_tickets
           error = Error.new(:INVALID_TICKET, "Ticket '#{ticket}' is a proxy ticket, but only service tickets are allowed here.")
           logger.warn "#{error.code} - #{error.message}"
-        elsif Time.now - st.created_on > settings.config[:maximum_unused_service_ticket_lifetime]
+        elsif st.expired?
           error = Error.new(:INVALID_TICKET, "Ticket '#{ticket}' has expired.")
           logger.warn "Ticket '#{ticket}' has expired."
         elsif !st.matches_service? service
