@@ -4,17 +4,18 @@ module CASServer::Model
       :class_name => 'CASServer::Model::ProxyGrantingTicket',
       :foreign_key => :granted_by_pgt_id
       
-    def self.generate_proxy_ticket(target_service, pgt)
+    def self.generate!(target_service, host_name, pgt)
       # 3.2 (proxy ticket)
-      pt = ProxyTicket.new
-      pt.ticket = "PT-" + CASServer::Utils.random_string
-      pt.service = target_service
-      pt.username = pgt.service_ticket.username
-      pt.granted_by_pgt_id = pgt.id
-      pt.granted_by_tgt_id = pgt.service_ticket.granted_by_tgt.id
-      pt.client_hostname = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+      pt = ProxyTicket.new(
+        :ticket             => "PT-" + CASServer::Utils.random_string,
+        :service            => target_service,
+        :username           => pgt.service_ticket.username,
+        :granted_by_pgt_id  => pgt.id,
+        :granted_by_tgt_id  => pgt.service_ticket.granted_by_tgt.id,
+        :client_hostname    => host_name
+      )
       pt.save!
-      $LOG.debug("Generated proxy ticket '#{pt.ticket}' for target service '#{pt.service}'" +
+      logger.debug("Generated proxy ticket '#{pt.ticket}' for target service '#{pt.service}'" +
         " for user '#{pt.username}' at '#{pt.client_hostname}' using proxy-granting" +
         " ticket '#{pgt.ticket}'")
       pt

@@ -656,7 +656,8 @@ module CASServer
       @success = pgt && !@error
 
       if @success
-        @pt = CASServer::Model::ProxyTicket.generate_proxy_ticket(@target_service, pgt)
+        host_name = @env['HTTP_X_FORWARDED_FOR'] || @env['REMOTE_HOST'] || @env['REMOTE_ADDR']
+        @pt = CASServer::Model::ProxyTicket.generate!(@target_service, host_name, pgt)
       end
 
       status response_status_from_error(@error) if @error
