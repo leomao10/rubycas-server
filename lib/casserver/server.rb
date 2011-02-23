@@ -655,7 +655,7 @@ module CASServer
       @ticket = params['pgt']
       @target_service = params['targetService']
 
-      pgt, @error = CASServer::Model::ProxyGrantingTicket.validate_proxy_granting_ticket(@ticket)
+      pgt, @error = CASServer::Model::ProxyGrantingTicket.validate!(@ticket)
       @success = pgt && !@error
 
       if @success

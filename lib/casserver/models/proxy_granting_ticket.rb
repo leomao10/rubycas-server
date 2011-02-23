@@ -41,7 +41,7 @@ module CASServer::Model
       end
     end
     
-    def self.validate_proxy_granting_ticket(ticket)
+    def self.validate!(ticket)
       if ticket.nil?
         error = Error.new(:INVALID_REQUEST, "pgt parameter was missing in the request.")
         logger.warn("#{error.code} - #{error.message}")
